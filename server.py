@@ -6,17 +6,22 @@ import threading
 
 
 class ChatServer(threading.Thread):
-    """Server Class"""
+    """Server Class contains socketbind()--for starting the server, 
+    receivedata()--to receive data senddata()-- sends data to client
+    userdetails() -- splits user information and the message
+    startserver() -- calls two function socketbind() and senddata()
+    endserver() -- closes the server and make a system exit"""
 
     def __init__(self, ):
         threading.Thread.__init__(self)
         self.host = ''
         self.port = 10000
-        self.clientlist = []
         self.hostname = socket.gethostname()
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.recvdict = {}
+        
+        self.recvdict = dict()
+        self.clientlist = list()
         self.message = ''
 
     def socketbind(self):
@@ -28,7 +33,6 @@ class ChatServer(threading.Thread):
             sys.exit()
         self.server.listen(100)
         self.clientlist.append(self.server)
-        self.recvdict[self.server] = 'Server'
 
     @classmethod
     def receivedata(cls, sock):
@@ -48,7 +52,9 @@ class ChatServer(threading.Thread):
         self.senddata()
 
     def senddata(self):
-        """filter the recevied data to send to particular node"""
+        """filter the recevied data to send to particular node
+        readsock: list ready to be read will be readsock
+        """
 
         while True:
             try:
@@ -58,49 +64,45 @@ class ChatServer(threading.Thread):
                 continue
             for sock in readsock:
                 if sock == self.server:
-                    try:
+                    try:  # accepts new connection here
                         conn, addr = self.server.accept()
+                        self.clientlist.append(conn)
                     except socket.error:
                         break
                     else:
                         self.clientlist.append(conn)
                 else:
                     try:
+                        # data has 'receivername>>sendername:message'
                         data = self.receivedata(sock)
-                        data = str(data)
-                        detail = data.split('<<')
-                        recvname = detail[0]
-                        self.message = detail[1]
-
-                        senderdetail = self.message.split(':')
-                        sendername = senderdetail[0]
-                        self.recvdict[sock] = sendername
-
-                        self.broadcast(sock, self.message, recvname)
+                        # recvname has 'sendername:message'
+                        recvname = self.userdetails(data, addr[0])
+                        print(recvname, '\n')
+                        #self.broadcast(sock, self.message, recvname)
 
                     except socket.error:
                         continue
         self.endserver()
 
-    def broadcast(self, sock, msg, recvname):
-        """Send messages to all active clients"""
-        msg.encode()
-        print(msg, )
-        for clients in self.clientlist:
-            print(1, )
-            if clients != self.server and clients != sock and msg:
-                print(2, )
-                for receivername in self.recvdict[sock]:
-                    print(3, )
-                    if receivername == recvname:
-                        try:
-                            print(receivername, )
-                            clients.send(msg)
-                        except socket.error:
-                            clients.close()
-                            self.clientlist.remove(clients)
-                    else:
-                        continue
-            else:
-                if clients in self.clientlist:
-                    self.clientlist.remove(clients)
+    def userdetails(self, data, addr):
+        """ Splits the sender name receiver name and data
+        detail[1] has 'sendername:message'
+        detail[0] has 'receviername'
+        senderdetail[0] has 'sendername'
+        self.recvdict stores {addr:'sendername'}
+        """
+
+        detail = str(data).split('<<')
+        self.message = detail[1]
+        recvname = detail[0]
+
+        senderdetail = self.message.split(':')
+
+        #print(self.recvdict, )
+        #print(addr[1], )
+        #print(senderdetail[0], )
+
+        self.recvdict[addr] = senderdetail[0]
+        print(self.recvdict, )
+
+        return recvname
